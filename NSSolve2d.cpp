@@ -10,6 +10,7 @@
 #include <emscripten/html5.h>
 #include <SDL/SDL.h>
 #include <queue>
+#include <unsupported/Eigen/FFT>
 
 #define PI 3.141592653589793238462
 
@@ -17,6 +18,8 @@ typedef Eigen::SparseMatrix<double> SpMat;
 typedef Eigen::VectorXd Vec;
 typedef Eigen::Triplet<double> Trip;
 typedef Eigen::MatrixXd Mat;
+
+const int DISPPIXELS = 700;
 
 
 // precomputable quantities
@@ -829,11 +832,6 @@ double NSSolve::Eval(double x, double y)
 	return val;
 }
 
-double NSSolve::Eval1(double x, double y)
-{
-	return (Eval(x,y)+Eval(x,y+0.5)+Eval(x,y-0.5)+Eval(x+0.5,y)+Eval(x-0.5,y)+Eval(x+0.25,y+0.25)+Eval(x+0.25,y-0.25)+Eval(x-0.25,y-0.25)+Eval(x-0.25,y+0.25))/9.0;
-}
-
 double NSSolve::SolResid()
 {
 	int numpts = N*N;
@@ -860,7 +858,108 @@ double NSSolve::SolResid()
 	return resid/sizeRHS;
 }
 
+void FFT2D(Mat& input,Mat& outputRe,Mat& outputIm)
+{
+	Eigen::FFT<double> fft;
+	int rows = input.rows();
+	int cols = input.cols();
+	for(int i = 0; i < rows; i++)
+	{
+		std::vector<double> row;
+		for(int j = 0; j < cols; j++) row.push_back(input(i,j));
+		std::vector<std::complex<double>> freqs;
+		fft.fwd(freqs,row);
+		for(int j = 0; j < cols; j++)
+		{
+			outputRe(i,j) = freqs[j].real();
+			outputIm(i,j) = freqs[j].imag();
+		}
+	}
+	for(int j = 0; j < cols; j++)
+	{
+		std::vector<double> colRe;
+		std::vector<double> colIm;
+		for(int i = 0; i < rows; i++)
+		{
+			colRe.push_back(outputRe(i,j));
+			colIm.push_back(outputIm(i,j));
+		}
+		std::vector<std::complex<double>> freqsRe;
+		std::vector<std::complex<double>> freqsIm;
+		fft.fwd(freqsRe,colRe);
+		fft.fwd(freqsIm,colIm);
+		for(int i = 0; i < rows; i++)
+		{
+			outputRe(i,j) = freqsRe[i].real() - freqsIm[i].imag();
+			outputIm(i,j) = freqsRe[i].imag() + freqsIm[i].real();
+		}
+	}
+}
+
+void IFFT2D(Mat& inputRe, Mat& inputIm,Mat& outputRe,Mat& outputIm)
+{
+	Eigen::FFT<double> fft;
+	int rows = inputRe.rows();
+	int cols = inputRe.cols();
+	for(int i = 0; i < rows; i++)
+	{
+		std::vector<std::complex<double>> row;
+		for(int j = 0; j < cols; j++)
+		{
+			std::complex<double> elem(inputRe(i,j),inputIm(i,j));
+			row.push_back(elem);
+		}
+		std::vector<std::complex<double>> res;
+		fft.inv(res,row);
+		for(int j = 0; j < cols; j++)
+		{
+			outputRe(i,j) = res[j].real();
+			outputIm(i,j) = res[j].imag();
+		}
+	}
+	for(int j = 0; j < cols; j++)
+	{
+		std::vector<std::complex<double>> col;
+		for(int i = 0; i < rows; i++)
+		{
+			std::complex<double> elem(outputRe(i,j),outputIm(i,j));
+			col.push_back(elem);
+		}
+		std::vector<std::complex<double>> res;
+		fft.inv(res,col);
+		for(int i = 0; i < rows; i++)
+		{
+			outputRe(i,j) = res[i].real();
+			outputIm(i,j) = res[i].imag();
+		}
+	}
+}
+
+
 extern "C" {
+
+Mat dispRe(DISPPIXELS,DISPPIXELS);
+Mat dispIm(DISPPIXELS,DISPPIXELS);
+Mat dispReFFT(DISPPIXELS,DISPPIXELS);
+Mat dispImFFT(DISPPIXELS,DISPPIXELS);
+
+void RecalcDisp()
+{
+	FFT2D(dispRe,dispReFFT,dispImFFT);
+	for(int i = 0; i < DISPPIXELS; i++)
+	{
+		for(int j = 0; j < DISPPIXELS; j++)
+		{
+			if(i > 201 || j > 201)
+			{
+				dispReFFT(i,j) = 0.0;
+				dispImFFT(i,j) = 0.0;
+			}
+		}
+	}
+	IFFT2D(dispReFFT,dispImFFT,dispRe,dispIm);
+}
+
 
 double len = 10.0;
 SDL_Surface *screen;
@@ -939,28 +1038,39 @@ double blue(double lambda, int colorIndex)
 
 void repaint(NSSolve& cd)
 {
-	double maxphi = cd.Eval1(0.0, 0.0);
-	double minphi = cd.Eval1(0.0,0.0);
+	double maxphi = cd.Eval(0.0, 0.0);
+	double minphi = cd.Eval(0.0,0.0);
 	for(int i = 0; i < 100; i++)
 	{
 		for(int j = 0; j < 100; j++)
 		{
-			double val = cd.Eval1(len*(1.0*j)/100,len*(1.0*i)/100);
+			double val = cd.Eval(len*(1.0*j)/100,len*(1.0*i)/100);
 			if(val > maxphi) maxphi = val;
 			if(val < minphi) minphi = val;
 		}
 	}
 
+	for(int i = 0; i < DISPPIXELS; i++)
+	{
+		for(int j = 0; j < DISPPIXELS; j++)
+		{
+			dispRe(i,j) = (cd.Eval(len*(1.0*j)/DISPPIXELS,len*(1.0*i)/DISPPIXELS)-minphi)/(maxphi-minphi);
+			dispIm(i,j) = 0.0;
+		}
+	}
+
+	//RecalcDisp();
+
 	if (SDL_MUSTLOCK(screen)) SDL_LockSurface(screen);
-	for (int i = 0; i < 700; i++) {
-		for (int j = 0; j < 700; j++) {
-			double val = (cd.Eval1(len*(1.0*j)/700,len*(1.0*i)/700)-minphi)/(maxphi-minphi);
+	for (int i = 0; i < DISPPIXELS; i++) {
+		for (int j = 0; j < DISPPIXELS; j++) {
+			double val = dispRe(i,j);
 			int colorIndex = getColorIndex(val);
 			double lambda = getLambda(val,colorIndex);
 			double valr = red(lambda,colorIndex)*255.0;
 			double valg = green(lambda,colorIndex)*255.0;
 			double valb = blue(lambda,colorIndex)*255.0;
-			*((Uint32*)screen->pixels + i * 700 + j) = SDL_MapRGBA(screen->format, (int)valr, (int)valg, (int)valb, 255);
+			*((Uint32*)screen->pixels + i * DISPPIXELS + j) = SDL_MapRGBA(screen->format, (int)valr, (int)valg, (int)valb, 255);
 		}
 	}
 	if (SDL_MUSTLOCK(screen)) SDL_UnlockSurface(screen);
@@ -1134,7 +1244,7 @@ int main(int argc, char ** argv)
 	workQueue.push(1);
 	
 	SDL_Init(SDL_INIT_VIDEO);
-	screen = SDL_SetVideoMode(700, 700, 32, SDL_SWSURFACE);
+	screen = SDL_SetVideoMode(DISPPIXELS, DISPPIXELS, 32, SDL_SWSURFACE);
 
 	emscripten_set_click_callback("canvas", 0, 1, mouseclick_callback);
 	emscripten_set_mousedown_callback("canvas", 0, 1, mousedown_callback);
