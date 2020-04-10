@@ -62,7 +62,7 @@ private:
 	void BuildMatUYM(Vec& uy);
 	void BuildRHS();
 public:
-	NSSolve(int N,int K, double L, bool steadyState) : N(N), K(K), L(L), steadyState(steadyState), dof(((N*N*(K+1)*(K+2))/2)), sigma0((K+1)*(K+2)*4+1)
+	NSSolve(int N,int K, double L, bool steadyState) : N(N), K(K), L(L), steadyState(steadyState), dof(((N*N*(K+1)*(K+1)))), sigma0((K+1)*(K+2)*4+1)
 	{}
 	void init()
 	{
@@ -80,7 +80,7 @@ public:
 		BuildMatA();
 		BuildRHS();
 	}
-	inline int idx(int ix, int iy, int px, int py) { return (((K+1)*(K+2)*(N*((ix+N)%N)+(iy+N)%N))/2 + ((px+py)*(px+py+1))/2 + px); }
+	inline int idx(int ix, int iy, int px, int py) { return (((K+1)*(K+1)*(N*((ix+N)%N)+(iy+N)%N)) + px*(K+1)+py); }
 	double Eval(double x, double y);
 	double Eval1(double x, double y);
 	void SetU(Vec& ux, Vec& uy) 
@@ -286,11 +286,11 @@ void NSSolve::BuildMatA()
 	// Diagonal blocks
 	for(int px = 0; px < K+1; px++)
 	{
-		for(int py = 0; py < K+1-px; py++)
+		for(int py = 0; py < K+1; py++)
 		{
 			for(int qx = 0; qx < K+1; qx++)
 			{
-				for(int qy = 0; qy < K+1-qx; qy++)
+				for(int qy = 0; qy < K+1; qy++)
 				{
 					double val = 0.0;
 					val += diffconst * std::pow(2.0/h,2) * normLegendreDerivProducts[px][qx] * (py == qy ? 1.0 : 0.0);
@@ -352,11 +352,11 @@ void NSSolve::BuildMatA()
 	// East blocks
 	for(int px = 0; px < K+1; px++)
 	{
-		for(int py = 0; py < K+1-px; py++)
+		for(int py = 0; py < K+1; py++)
 		{
 			for(int qx = 0; qx < K+1; qx++)
 			{
-				for(int qy = 0; qy < K+1-qx; qy++)
+				for(int qy = 0; qy < K+1; qy++)
 				{
 					double val = 0.0;
 					val += diffconst * (2.0/h) *(2.0/h) * (-0.5) * (py == qy ? 1.0 : 0.0)
@@ -383,11 +383,11 @@ void NSSolve::BuildMatA()
 	// West blocks
 	for(int px = 0; px < K+1; px++)
 	{
-		for(int py = 0; py < K+1-px; py++)
+		for(int py = 0; py < K+1; py++)
 		{
 			for(int qx = 0; qx < K+1; qx++)
 			{
-				for(int qy = 0; qy < K+1-qx; qy++)
+				for(int qy = 0; qy < K+1; qy++)
 				{
 					double val = 0.0;
 					val += diffconst * (2.0/h) * (0.5) *(2.0/h) * (py == qy ? 1.0 : 0.0)
@@ -414,11 +414,11 @@ void NSSolve::BuildMatA()
 	// North blocks
 	for(int px = 0; px < K+1; px++)
 	{
-		for(int py = 0; py < K+1-px; py++)
+		for(int py = 0; py < K+1; py++)
 		{
 			for(int qx = 0; qx < K+1; qx++)
 			{
-				for(int qy = 0; qy < K+1-qx; qy++)
+				for(int qy = 0; qy < K+1; qy++)
 				{
 					double val = 0.0;
 					val += diffconst * (2.0/h) * (-0.5) *(2.0/h) * (px == qx ? 1.0 : 0.0)
@@ -445,11 +445,11 @@ void NSSolve::BuildMatA()
 	// South blocks
 	for(int px = 0; px < K+1; px++)
 	{
-		for(int py = 0; py < K+1-px; py++)
+		for(int py = 0; py < K+1; py++)
 		{
 			for(int qx = 0; qx < K+1; qx++)
 			{
-				for(int qy = 0; qy < K+1-qx; qy++)
+				for(int qy = 0; qy < K+1; qy++)
 				{
 					double val = 0.0;
 					val += diffconst * (2.0/h) * (0.5) *(2.0/h) * (px == qx ? 1.0 : 0.0)
@@ -485,11 +485,11 @@ void NSSolve::BuildMatUXP(Vec& ux)
 	// Diagonal blocks
 	for(int px = 0; px < K+1; px++)
 	{
-		for(int py = 0; py < K+1-px; py++)
+		for(int py = 0; py < K+1; py++)
 		{
 			for(int qx = 0; qx < K+1; qx++)
 			{
-				for(int qy = 0; qy < K+1-qx; qy++)
+				for(int qy = 0; qy < K+1; qy++)
 				{
 					double val = 0.0;
 					val -=  (2.0/h) *normLegendreAltProducts[px][qx] * (py == qy ? 1.0 : 0.0);
@@ -517,11 +517,11 @@ void NSSolve::BuildMatUXP(Vec& ux)
 	// West blocks
 	for(int px = 0; px < K+1; px++)
 	{
-		for(int py = 0; py < K+1-px; py++)
+		for(int py = 0; py < K+1; py++)
 		{
 			for(int qx = 0; qx < K+1; qx++)
 			{
-				for(int qy = 0; qy < K+1-qx; qy++)
+				for(int qy = 0; qy < K+1; qy++)
 				{
 					double val = 0.0;
 					val -= (2.0/h) * normLegendreLeftVals[qx]*normLegendreRightVals[px]
@@ -555,11 +555,11 @@ void NSSolve::BuildMatUXM(Vec& ux)
 	// Diagonal blocks
 	for(int px = 0; px < K+1; px++)
 	{
-		for(int py = 0; py < K+1-px; py++)
+		for(int py = 0; py < K+1; py++)
 		{
 			for(int qx = 0; qx < K+1; qx++)
 			{
-				for(int qy = 0; qy < K+1-qx; qy++)
+				for(int qy = 0; qy < K+1; qy++)
 				{
 					double val = 0.0;
 					val -= (2.0/h) *normLegendreAltProducts[px][qx] * (py == qy ? 1.0 : 0.0);
@@ -586,11 +586,11 @@ void NSSolve::BuildMatUXM(Vec& ux)
 	// East blocks
 	for(int px = 0; px < K+1; px++)
 	{
-		for(int py = 0; py < K+1-px; py++)
+		for(int py = 0; py < K+1; py++)
 		{
 			for(int qx = 0; qx < K+1; qx++)
 			{
-				for(int qy = 0; qy < K+1-qx; qy++)
+				for(int qy = 0; qy < K+1; qy++)
 				{
 					double val = 0.0;
 					val -= (2.0/h) * (-1.0) * normLegendreLeftVals[px]*normLegendreRightVals[qx]
@@ -625,11 +625,11 @@ void NSSolve::BuildMatUYP(Vec& uy)
 	// Diagonal blocks
 	for(int px = 0; px < K+1; px++)
 	{
-		for(int py = 0; py < K+1-px; py++)
+		for(int py = 0; py < K+1; py++)
 		{
 			for(int qx = 0; qx < K+1; qx++)
 			{
-				for(int qy = 0; qy < K+1-qx; qy++)
+				for(int qy = 0; qy < K+1; qy++)
 				{
 					double val = 0.0;
 					val -=(2.0/h) * (px == qx ? 1.0 : 0.0) * normLegendreAltProducts[py][qy];
@@ -656,11 +656,11 @@ void NSSolve::BuildMatUYP(Vec& uy)
 	// South blocks
 	for(int px = 0; px < K+1; px++)
 	{
-		for(int py = 0; py < K+1-px; py++)
+		for(int py = 0; py < K+1; py++)
 		{
 			for(int qx = 0; qx < K+1; qx++)
 			{
-				for(int qy = 0; qy < K+1-qx; qy++)
+				for(int qy = 0; qy < K+1; qy++)
 				{
 					double val = 0.0;
 					val -= (2.0/h) * normLegendreLeftVals[qy]*normLegendreRightVals[py]
@@ -694,11 +694,11 @@ void NSSolve::BuildMatUYM(Vec& uy)
 	// Diagonal blocks
 	for(int px = 0; px < K+1; px++)
 	{
-		for(int py = 0; py < K+1-px; py++)
+		for(int py = 0; py < K+1; py++)
 		{
 			for(int qx = 0; qx < K+1; qx++)
 			{
-				for(int qy = 0; qy < K+1-qx; qy++)
+				for(int qy = 0; qy < K+1; qy++)
 				{
 					double val = 0.0;
 					val -= (2.0/h) *(px == qx ? 1.0 : 0.0) * normLegendreAltProducts[py][qy];
@@ -725,11 +725,11 @@ void NSSolve::BuildMatUYM(Vec& uy)
 	// North blocks
 	for(int px = 0; px < K+1; px++)
 	{
-		for(int py = 0; py < K+1-px; py++)
+		for(int py = 0; py < K+1; py++)
 		{
 			for(int qx = 0; qx < K+1; qx++)
 			{
-				for(int qy = 0; qy < K+1-qx; qy++)
+				for(int qy = 0; qy < K+1; qy++)
 				{
 					double val = 0.0;
 					val -= (2.0/h) * (-1.0) * normLegendreLeftVals[py]*normLegendreRightVals[qy]
@@ -786,7 +786,7 @@ void NSSolve::BuildRHS()
 			double yc = (iy+0.5)*h;
 			for(int px = 0; px < K+1; px++)
 			{
-				for(int py = 0; py < K+1-px; py++)
+				for(int py = 0; py < K+1; py++)
 				{
 					double val = 0.0;
 					for(int j = 0; j < 22; j++)
@@ -821,7 +821,7 @@ double NSSolve::Eval(double x, double y)
 	double yc = (iy+0.5)*h;
 	for(int px = 0; px < K+1; px++)
 	{
-		for(int py = 0; py < K+1-px; py++)
+		for(int py = 0; py < K+1; py++)
 		{
 			val += phi(idx(ix,iy,px,py)) * LegendreEvalNorm(px,(x-xc)*(2.0/h)) * LegendreEvalNorm(py,(y-yc)*(2.0/h));
 		}
@@ -831,7 +831,7 @@ double NSSolve::Eval(double x, double y)
 
 double NSSolve::Eval1(double x, double y)
 {
-	return (Eval(x,y)+Eval(x,y+0.25)+Eval(x,y-0.25)+Eval(x+0.25,y)+Eval(x-0.25,y)+Eval(x+0.25,y+0.25)+Eval(x+0.25,y-0.25)+Eval(x-0.25,y-0.25)+Eval(x-0.25,y+0.25))/9.0;
+	return (Eval(x,y)+Eval(x,y+0.5)+Eval(x,y-0.5)+Eval(x+0.5,y)+Eval(x-0.5,y)+Eval(x+0.25,y+0.25)+Eval(x+0.25,y-0.25)+Eval(x-0.25,y-0.25)+Eval(x-0.25,y+0.25))/9.0;
 }
 
 double NSSolve::SolResid()
@@ -872,8 +872,8 @@ bool nsSolveHighInited(false);
 bool mouseIsDown(false);
 bool touchIsStarted(false);
 
-Vec ux(4800); ////
-Vec uy(4800); ////
+Vec ux(6400); ////
+Vec uy(6400); ////
 
 double getVelocityX(long targetX)
 {
