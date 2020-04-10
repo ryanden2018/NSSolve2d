@@ -61,7 +61,6 @@ private:
 	void BuildMatUXM(Vec& ux);
 	void BuildMatUYP(Vec& uy);
 	void BuildMatUYM(Vec& uy);
-	void BuildRHS();
 public:
 	NSSolve(int N,int K, double L, bool steadyState) : N(N), K(K), L(L), steadyState(steadyState), dof(((N*N*(K+1)*(K+1)))), sigma0((K+1)*(K+2)*4+1)
 	{}
@@ -79,7 +78,6 @@ public:
 		phi.resize(dof);
 		for(int i = 0; i < dof; i++) phi(i) = 0;
 		BuildMatA();
-		BuildRHS();
 	}
 	Vec phi;
 	inline int idx(int ix, int iy, int px, int py) { return (((K+1)*(K+1)*(N*((ix+N)%N)+(iy+N)%N)) + px*(K+1)+py); }
@@ -761,58 +759,6 @@ void NSSolve::BuildMatUYM(Vec& uy)
 }
 
 
-
-
-double PeriodicGaussian(double x, double y, double r)
-{
-	double val = 0.0;
-	for(int i = -2; i <= 2; i++)
-	{
-		for(int j = -2; j <= 2; j++)
-		{
-			val += std::exp(-0.5*std::pow((x-1.0*i)/r,2)-0.5*std::pow((y-1.0*j)/r,2));
-		}
-	}
-	return val;
-}
-
-double EvalRHS(double x, double y)
-{ 
-	return PeriodicGaussian(x-0.2,y-0.8,0.15) - PeriodicGaussian(x-0.8,y-0.2,0.15);
-}
-
-void NSSolve::BuildRHS()
-{
-	double h = L/N;
-	for(int ix = 0; ix < N; ix++)
-	{
-		for(int iy = 0; iy < N; iy++)
-		{
-			double xc = (ix+0.5)*h;
-			double yc = (iy+0.5)*h;
-			for(int px = 0; px < K+1; px++)
-			{
-				for(int py = 0; py < K+1; py++)
-				{
-					double val = 0.0;
-					for(int j = 0; j < 22; j++)
-					{
-						for(int k = 0; k < 22; k++)
-						{
-							val += weights[j]*weights[k]
-								* LegendreEvalNorm(px,coords[j])
-								* LegendreEvalNorm(py,coords[k])
-								* EvalRHS((xc+coords[j]*(h/2.0))/L, (yc+coords[k]*(h/2.0))/L);
-						}
-					}
-					rhs(idx(ix,iy,px,py)) = val;
-				}
-			}
-		}
-	}
-	rhs(0) = 0.0;
-}
-
 double NSSolve::Eval(double x, double y)
 {
 	if(x < 0.0) return Eval(x+L,y);
@@ -834,33 +780,6 @@ double NSSolve::Eval(double x, double y)
 	}
 	return val;
 }
-
-double NSSolve::SolResid()
-{
-	int numpts = N*N;
-	double resid = 0.0;
-	double sizeRHS = 0.0;
-	double h = L/N;
-	for(int i = 0; i < N; i++)
-	{
-		for(int j = 0; j < N; j++)
-		{
-			double xx = (0.5+i)*h;
-			double yy = (0.5+j)*h;
-			double val = 0.0;
-			val -= diffconst*( -Eval(xx+4.0*h,yy)/560.0 + Eval(xx+3.0*h,yy)*8.0/315.0  -Eval(xx+2.0*h,yy)/5.0+Eval(xx+h,yy)*8.0/5.0+Eval(xx-h,yy)*8.0/5.0-Eval(xx-2.0*h,yy)/5.0 + Eval(xx-3.0*h,yy)*8.0/315.0 - Eval(xx-4.0*h,yy)/560.0 - Eval(xx,yy+4.0*h)/560.0+Eval(xx,yy+3.0*h)*8.0/315.0 -Eval(xx,yy+2.0*h)/5.0+Eval(xx,yy+h)*8.0/5.0+Eval(xx,yy-h)*8.0/5.0-Eval(xx,yy-2.0*h)/5.0 + Eval(xx,yy-3.0*h)*8.0/315.0 - Eval(xx,yy-4.0*h)/560.0 - Eval(xx,yy)*2.0*205.0/72.0 )/(h*h);
-			//val += ux * (-Eval(xx+4.0*h,yy)/280.0+Eval(xx+3.0*h,yy)*4.0/105.0-Eval(xx+2.0*h,yy)/5.0+Eval(xx+h,yy)*4.0/5.0-Eval(xx-h,yy)*4.0/5.0+Eval(xx-2.0*h,yy)/5.0-Eval(xx-3.0*h,yy)*4.0/105.0+Eval(xx-4.0*h,yy)/280.0)/(h);
-			//val += uy * (-Eval(xx,yy+4.0*h)/280.0+Eval(xx,yy+3.0*h)*4.0/105.0-Eval(xx,yy+2.0*h)/5.0+Eval(xx,yy+h)*4.0/5.0-Eval(xx,yy-h)*4.0/5.0+Eval(xx,yy-2.0*h)/5.0-Eval(xx,yy-3.0*h)*4.0/105.0+Eval(xx,yy-4.0*h)/280.0)/(h);
-			val -= EvalRHS(xx/L,yy/L);
-			resid += std::pow(val,2);
-			sizeRHS += std::pow(EvalRHS(xx/L,yy/L),2);
-		}
-	}
-	resid = std::pow(resid/numpts,0.5);
-	sizeRHS = std::pow(sizeRHS/numpts,0.5);
-	return resid/sizeRHS;
-}
-
 
 
 extern "C" {
@@ -1085,10 +1004,21 @@ void init()
 		nsSolveOmega.init();
 		nsSolveOmega.PrepEvolve(dt);
 		nsSolve.Compute();
+		for(int ix = 0; ix < 40; ix++)
+		{
+			for(int iy = 0; iy < 40; iy++)
+			{
+				nsSolveOmega.phi(nsSolve.idx(ix,iy,0,0)) =
+					 (25*std::cos(2.0*PI*ix/40.0)-25*std::cos(2.0*PI*iy/40.0))*2.0*PI/len;
+			}
+		}
 		nsSolveInited = true;
 	}
 	nsSolve.SetRHS(nsSolveOmega.phi);
 	nsSolve.Solve();
+	nsSolveOmega.SetU(ux,uy);
+	nsSolveOmega.Evolve(dt);
+	repaint(nsSolve);
 	for(int ix = 0; ix < 40; ix++)
 	{
 		for(int iy = 0; iy < 40; iy++)
@@ -1097,9 +1027,6 @@ void init()
 			uy(nsSolve.idx(ix,iy,0,0)) = nsSolve.phi(nsSolve.idx(ix,iy,1,0));
 		}
 	}
-	nsSolveOmega.SetU(ux,uy);
-	nsSolveOmega.Evolve(dt);
-	repaint(nsSolve);
 	return;
 
 }
@@ -1133,6 +1060,15 @@ int main(int argc, char ** argv)
 
 	ux.setZero();
 	uy.setZero();
+	for(int ix = 0; ix < 40; ix++)
+	{
+		for(int iy = 0; iy < 40; iy++)
+		{
+			ux(nsSolve.idx(ix,iy,0,0)) = 25*std::sin(2.0*PI*iy/40.0);
+			uy(nsSolve.idx(ix,iy,0,0)) = 25*std::sin(2.0*PI*ix/40.0);
+		}
+	}
+	
 	
 
 	workQueue.push(0);
