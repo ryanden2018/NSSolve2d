@@ -56,7 +56,6 @@ private:
 	Vec rhs;
 	bool steadyState;
 	Eigen::BiCGSTAB<SpMat,Eigen::IncompleteLUT<double>> solver;
-	Vec phi;
 	void BuildMatA();
 	void BuildMatUXP(Vec& ux);
 	void BuildMatUXM(Vec& ux);
@@ -82,9 +81,14 @@ public:
 		BuildMatA();
 		BuildRHS();
 	}
+	Vec phi;
 	inline int idx(int ix, int iy, int px, int py) { return (((K+1)*(K+1)*(N*((ix+N)%N)+(iy+N)%N)) + px*(K+1)+py); }
 	double Eval(double x, double y);
-	double Eval1(double x, double y);
+	void SetRHS(Vec rhs)
+	{
+		this->rhs = rhs;
+		if(steadyState) this->rhs(0)=0.0;
+	}
 	void SetU(Vec& ux, Vec& uy) 
 	{ 
 		BuildMatUXP(ux);
@@ -867,11 +871,10 @@ Mat dispTemp(DISPPIXELS,DISPPIXELS);
 
 double len = 10.0;
 SDL_Surface *screen;
-NSSolve nsSolve(10,1,len,false);
-NSSolve nsSolveHigh(40,1,len,false);
+NSSolve nsSolve(40,1,len,true);
+NSSolve nsSolveOmega(40,1,len,false);
 std::queue<int> workQueue;
 bool nsSolveInited(false);
-bool nsSolveHighInited(false);
 bool mouseIsDown(false);
 bool touchIsStarted(false);
 
@@ -1069,56 +1072,36 @@ EM_BOOL touchcancel_callback(int eventType, const EmscriptenTouchEvent *e, void 
 int n = 0;
 void init()
 {
+	double dt = 0.05;
 	if(n < 5)
 	{
 		n++;
 		return;
 	}
 
-////
-if(!nsSolveHighInited)
-		{
-			nsSolveHigh.init();
-			nsSolveHigh.SetU(ux,uy);
-			nsSolveHigh.PrepEvolve(0.001);
-			nsSolveHighInited = true;
-		}
-		 nsSolveHigh.Evolve(0.001);
-		repaint(nsSolveHigh);
-		return;
-		////
-
-
-
-
-	if(workQueue.empty()) return;
-
-	int workItem = workQueue.front();
-	workQueue.pop();
-
-	if(workItem < 0) return;
-
-	if(workItem == 0)
+	if(!nsSolveInited)
 	{
-		if(!nsSolveInited)
-		{
-			nsSolve.init();
-			nsSolveInited = true;
-		}
-		repaint(nsSolve);
+		nsSolve.init();
+		nsSolveOmega.init();
+		nsSolveOmega.PrepEvolve(dt);
+		nsSolve.Compute();
+		nsSolveInited = true;
 	}
-	else
+	nsSolve.SetRHS(nsSolveOmega.phi);
+	nsSolve.Solve();
+	for(int ix = 0; ix < 40; ix++)
 	{
-		if(!nsSolveHighInited)
+		for(int iy = 0; iy < 40; iy++)
 		{
-			nsSolveHigh.init();
-			nsSolveHigh.SetU(ux,uy);
-			nsSolveHigh.PrepEvolve(0.01);
-			nsSolveHighInited = true;
+			ux(nsSolve.idx(ix,iy,0,0)) = -1.0*nsSolve.phi(nsSolve.idx(ix,iy,0,1));
+			uy(nsSolve.idx(ix,iy,0,0)) = nsSolve.phi(nsSolve.idx(ix,iy,1,0));
 		}
-		 nsSolveHigh.Evolve(0.01);
-		repaint(nsSolveHigh);
 	}
+	nsSolveOmega.SetU(ux,uy);
+	nsSolveOmega.Evolve(dt);
+	repaint(nsSolve);
+	return;
+
 }
 
 void NSSolve::PrepEvolve(double dt)
@@ -1150,14 +1133,6 @@ int main(int argc, char ** argv)
 
 	ux.setZero();
 	uy.setZero();
-	for(int ix = 0; ix < 40; ix++)
-	{
-		for(int iy = 0; iy < 40; iy++)
-		{
-			ux(nsSolveHigh.idx(ix,iy,0,0)) = 25*std::sin(2.0*PI*iy/40.0);
-			uy(nsSolveHigh.idx(ix,iy,0,0)) = 25*std::sin(2.0*PI*ix/40.0);
-		}
-	}
 	
 
 	workQueue.push(0);
