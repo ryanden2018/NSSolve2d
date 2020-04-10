@@ -10,7 +10,6 @@
 #include <emscripten/html5.h>
 #include <SDL/SDL.h>
 #include <queue>
-#include <unsupported/Eigen/FFT>
 
 #define PI 3.141592653589793238462
 
@@ -858,107 +857,12 @@ double NSSolve::SolResid()
 	return resid/sizeRHS;
 }
 
-void FFT2D(Mat& input,Mat& outputRe,Mat& outputIm)
-{
-	Eigen::FFT<double> fft;
-	int rows = input.rows();
-	int cols = input.cols();
-	for(int i = 0; i < rows; i++)
-	{
-		std::vector<double> row;
-		for(int j = 0; j < cols; j++) row.push_back(input(i,j));
-		std::vector<std::complex<double>> freqs;
-		fft.fwd(freqs,row);
-		for(int j = 0; j < cols; j++)
-		{
-			outputRe(i,j) = freqs[j].real();
-			outputIm(i,j) = freqs[j].imag();
-		}
-	}
-	for(int j = 0; j < cols; j++)
-	{
-		std::vector<double> colRe;
-		std::vector<double> colIm;
-		for(int i = 0; i < rows; i++)
-		{
-			colRe.push_back(outputRe(i,j));
-			colIm.push_back(outputIm(i,j));
-		}
-		std::vector<std::complex<double>> freqsRe;
-		std::vector<std::complex<double>> freqsIm;
-		fft.fwd(freqsRe,colRe);
-		fft.fwd(freqsIm,colIm);
-		for(int i = 0; i < rows; i++)
-		{
-			outputRe(i,j) = freqsRe[i].real() - freqsIm[i].imag();
-			outputIm(i,j) = freqsRe[i].imag() + freqsIm[i].real();
-		}
-	}
-}
-
-void IFFT2D(Mat& inputRe, Mat& inputIm,Mat& outputRe,Mat& outputIm)
-{
-	Eigen::FFT<double> fft;
-	int rows = inputRe.rows();
-	int cols = inputRe.cols();
-	for(int i = 0; i < rows; i++)
-	{
-		std::vector<std::complex<double>> row;
-		for(int j = 0; j < cols; j++)
-		{
-			std::complex<double> elem(inputRe(i,j),inputIm(i,j));
-			row.push_back(elem);
-		}
-		std::vector<std::complex<double>> res;
-		fft.inv(res,row);
-		for(int j = 0; j < cols; j++)
-		{
-			outputRe(i,j) = res[j].real();
-			outputIm(i,j) = res[j].imag();
-		}
-	}
-	for(int j = 0; j < cols; j++)
-	{
-		std::vector<std::complex<double>> col;
-		for(int i = 0; i < rows; i++)
-		{
-			std::complex<double> elem(outputRe(i,j),outputIm(i,j));
-			col.push_back(elem);
-		}
-		std::vector<std::complex<double>> res;
-		fft.inv(res,col);
-		for(int i = 0; i < rows; i++)
-		{
-			outputRe(i,j) = res[i].real();
-			outputIm(i,j) = res[i].imag();
-		}
-	}
-}
 
 
 extern "C" {
 
-Mat dispRe(DISPPIXELS,DISPPIXELS);
-Mat dispIm(DISPPIXELS,DISPPIXELS);
-Mat dispReFFT(DISPPIXELS,DISPPIXELS);
-Mat dispImFFT(DISPPIXELS,DISPPIXELS);
-
-void RecalcDisp()
-{
-	FFT2D(dispRe,dispReFFT,dispImFFT);
-	for(int i = 0; i < DISPPIXELS; i++)
-	{
-		for(int j = 0; j < DISPPIXELS; j++)
-		{
-			if(i > 201 || j > 201)
-			{
-				dispReFFT(i,j) = 0.0;
-				dispImFFT(i,j) = 0.0;
-			}
-		}
-	}
-	IFFT2D(dispReFFT,dispImFFT,dispRe,dispIm);
-}
+Mat disp(DISPPIXELS,DISPPIXELS);
+Mat dispTemp(DISPPIXELS,DISPPIXELS);
 
 
 double len = 10.0;
@@ -1054,17 +958,33 @@ void repaint(NSSolve& cd)
 	{
 		for(int j = 0; j < DISPPIXELS; j++)
 		{
-			dispRe(i,j) = (cd.Eval(len*(1.0*j)/DISPPIXELS,len*(1.0*i)/DISPPIXELS)-minphi)/(maxphi-minphi);
-			dispIm(i,j) = 0.0;
+			dispTemp(i,j) = (cd.Eval(len*(1.0*j)/DISPPIXELS,len*(1.0*i)/DISPPIXELS)-minphi)/(maxphi-minphi);
 		}
 	}
 
-	//RecalcDisp();
+	int shift = 25;
+
+	for(int i = 0; i < DISPPIXELS; i++)
+	{
+		for(int j = 0; j < DISPPIXELS; j++)
+		{
+			disp(i,j) = dispTemp((i+shift)%DISPPIXELS,(j+shift)%DISPPIXELS)
+				+ dispTemp((i+shift)%DISPPIXELS,j)
+				+ dispTemp((i+shift)%DISPPIXELS,(j-shift+DISPPIXELS)%DISPPIXELS)
+				+ dispTemp(i,(j-shift+DISPPIXELS)%DISPPIXELS)
+				+ dispTemp((i-shift+DISPPIXELS)%DISPPIXELS,(j-shift+DISPPIXELS)%DISPPIXELS)
+				+ dispTemp((i-shift+DISPPIXELS)%DISPPIXELS,j)
+				+ dispTemp((i-shift+DISPPIXELS)%DISPPIXELS,(j+shift)%DISPPIXELS)
+				+ dispTemp(i,(j+shift)%DISPPIXELS)
+				+ dispTemp(i,j);
+			disp(i,j) /= 9.0;
+		}
+	}
 
 	if (SDL_MUSTLOCK(screen)) SDL_LockSurface(screen);
 	for (int i = 0; i < DISPPIXELS; i++) {
 		for (int j = 0; j < DISPPIXELS; j++) {
-			double val = dispRe(i,j);
+			double val = disp(i,j);
 			int colorIndex = getColorIndex(val);
 			double lambda = getLambda(val,colorIndex);
 			double valr = red(lambda,colorIndex)*255.0;
