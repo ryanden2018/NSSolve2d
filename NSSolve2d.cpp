@@ -94,6 +94,7 @@ public:
 		BuildMatUYP(uy);
 		BuildMatUYM(uy);
 	}
+	void BuildRHS(double xx = 0.2, double yy = 0.8);
 	void Compute(bool useU = false) 
 	{
 		R=useU?(A+UXP+UXM+UYP+UYM):A;
@@ -759,6 +760,57 @@ void NSSolve::BuildMatUYM(Vec& uy)
 }
 
 
+
+double PeriodicGaussian(double x, double y, double r)
+{
+	double val = 0.0;
+	for(int i = -2; i <= 2; i++)
+	{
+		for(int j = -2; j <= 2; j++)
+		{
+			val += std::exp(-0.5*std::pow((x-1.0*i)/r,2)-0.5*std::pow((y-1.0*j)/r,2));
+		}
+	}
+	return val;
+}
+
+double EvalRHS(double x, double y, double xx, double yy)
+{ 
+	return PeriodicGaussian(x-xx,y-yy,0.15) - PeriodicGaussian(x-(1.0-xx),y-(1.0-yy),0.15);
+}
+
+void NSSolve::BuildRHS(double xx, double yy)
+{
+	double h = L/N;
+	for(int ix = 0; ix < N; ix++)
+	{
+		for(int iy = 0; iy < N; iy++)
+		{
+			double xc = (ix+0.5)*h;
+			double yc = (iy+0.5)*h;
+			for(int px = 0; px < K+1; px++)
+			{
+				for(int py = 0; py < K+1; py++)
+				{
+					double val = 0.0;
+					for(int j = 0; j < 22; j++)
+					{
+						for(int k = 0; k < 22; k++)
+						{
+							val += weights[j]*weights[k]
+								* LegendreEvalNorm(px,coords[j])
+								* LegendreEvalNorm(py,coords[k])
+								* EvalRHS((xc+coords[j]*(h/2.0))/L, (yc+coords[k]*(h/2.0))/L, xx, yy);
+						}
+					}
+					rhs(idx(ix,iy,px,py)) = val;
+				}
+			}
+		}
+	}
+	rhs(0) = 0.0;
+}
+
 double NSSolve::Eval(double x, double y)
 {
 	if(x < 0.0) return Eval(x+L,y);
@@ -802,19 +854,20 @@ Vec uy(6400); ////
 
 double getVelocityX(long targetX)
 {
-	return (targetX-350.0)/2;
+	return targetX/700.0;
 }
 
 
 double getVelocityY(long targetY)
 {
-	return (targetY-350.0)/2;
+	return targetY/700.0;
 }
 
 void mouse_update(const EmscriptenMouseEvent *e)
 {
 	double ux = getVelocityX(e->targetX);
 	double uy = getVelocityY(e->targetY);
+	nsSolveOmega.BuildRHS(ux,uy);
 }
 
 void touch_update(const EmscriptenTouchEvent *e)
@@ -832,6 +885,7 @@ void touch_update(const EmscriptenTouchEvent *e)
 		targetY /= e->numTouches;
 		double ux = getVelocityX(targetX);
 		double uy = getVelocityY(targetY);
+		nsSolveOmega.BuildRHS(ux,uy);
 	}
 }
 
@@ -991,7 +1045,7 @@ EM_BOOL touchcancel_callback(int eventType, const EmscriptenTouchEvent *e, void 
 int n = 0;
 void init()
 {
-	double dt = 0.05;
+	double dt = 0.001;
 	if(n < 5)
 	{
 		n++;
@@ -1002,21 +1056,22 @@ void init()
 	{
 		nsSolve.init();
 		nsSolveOmega.init();
-		nsSolveOmega.PrepEvolve(dt);
+		nsSolveOmega.BuildRHS();
 		nsSolve.Compute();
-		for(int ix = 0; ix < 40; ix++)
-		{
-			for(int iy = 0; iy < 40; iy++)
-			{
-				nsSolveOmega.phi(nsSolve.idx(ix,iy,0,0)) =
-					 (25*std::cos(2.0*PI*ix/40.0)-25*std::cos(2.0*PI*iy/40.0))*2.0*PI/len;
-			}
-		}
+		// for(int ix = 0; ix < 40; ix++)
+		// {
+		// 	for(int iy = 0; iy < 40; iy++)
+		// 	{
+		// 		nsSolveOmega.phi(nsSolve.idx(ix,iy,0,0)) =
+		// 			 (25*std::cos(2.0*PI*ix/40.0)-25*std::cos(2.0*PI*iy/40.0))*2.0*PI/len;
+		// 	}
+		// }
 		nsSolveInited = true;
 	}
 	nsSolve.SetRHS(nsSolveOmega.phi);
 	nsSolve.Solve();
 	nsSolveOmega.SetU(ux,uy);
+	nsSolveOmega.PrepEvolve(dt);
 	nsSolveOmega.Evolve(dt);
 	repaint(nsSolve);
 	for(int ix = 0; ix < 40; ix++)
