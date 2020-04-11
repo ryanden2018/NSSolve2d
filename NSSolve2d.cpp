@@ -10,6 +10,7 @@
 #include <emscripten/html5.h>
 #include <SDL/SDL.h>
 #include <queue>
+#include <unsupported/Eigen/FFT>
 
 #define PI 3.141592653589793238462
 
@@ -62,7 +63,7 @@ private:
 	void BuildMatUYP(Vec& uy);
 	void BuildMatUYM(Vec& uy);
 public:
-	NSSolve(int N,int K, double L, bool steadyState) : N(N), K(K), L(L), steadyState(steadyState), dof(((N*N*(K+1)*(K+1)))), sigma0((K+1)*(K+2)*4+1)
+	NSSolve(int N,int K, double L, bool steadyState) : N(N), K(K), L(L), steadyState(steadyState), dof(((N*N*(K+1)*(K+2))/2)), sigma0((K+1)*(K+2)*4+1)
 	{}
 	void init()
 	{
@@ -80,7 +81,7 @@ public:
 		BuildMatA();
 	}
 	Vec phi;
-	inline int idx(int ix, int iy, int px, int py) { return (((K+1)*(K+1)*(N*((ix+N)%N)+(iy+N)%N)) + px*(K+1)+py); }
+	inline int idx(int ix, int iy, int px, int py) { return (((K+1)*(K+2)*(N*((ix+N)%N)+(iy+N)%N))/2 + ((px+py)*(px+py+1))/2 + px); }
 	double Eval(double x, double y);
 	void SetRHS(Vec rhs)
 	{
@@ -291,11 +292,11 @@ void NSSolve::BuildMatA()
 	// Diagonal blocks
 	for(int px = 0; px < K+1; px++)
 	{
-		for(int py = 0; py < K+1; py++)
+		for(int py = 0; py < K+1-px; py++)
 		{
 			for(int qx = 0; qx < K+1; qx++)
 			{
-				for(int qy = 0; qy < K+1; qy++)
+				for(int qy = 0; qy < K+1-qx; qy++)
 				{
 					double val = 0.0;
 					val += diffconst * std::pow(2.0/h,2) * normLegendreDerivProducts[px][qx] * (py == qy ? 1.0 : 0.0);
@@ -357,11 +358,11 @@ void NSSolve::BuildMatA()
 	// East blocks
 	for(int px = 0; px < K+1; px++)
 	{
-		for(int py = 0; py < K+1; py++)
+		for(int py = 0; py < K+1-px; py++)
 		{
 			for(int qx = 0; qx < K+1; qx++)
 			{
-				for(int qy = 0; qy < K+1; qy++)
+				for(int qy = 0; qy < K+1-qx; qy++)
 				{
 					double val = 0.0;
 					val += diffconst * (2.0/h) *(2.0/h) * (-0.5) * (py == qy ? 1.0 : 0.0)
@@ -388,11 +389,11 @@ void NSSolve::BuildMatA()
 	// West blocks
 	for(int px = 0; px < K+1; px++)
 	{
-		for(int py = 0; py < K+1; py++)
+		for(int py = 0; py < K+1-px; py++)
 		{
 			for(int qx = 0; qx < K+1; qx++)
 			{
-				for(int qy = 0; qy < K+1; qy++)
+				for(int qy = 0; qy < K+1-qx; qy++)
 				{
 					double val = 0.0;
 					val += diffconst * (2.0/h) * (0.5) *(2.0/h) * (py == qy ? 1.0 : 0.0)
@@ -419,11 +420,11 @@ void NSSolve::BuildMatA()
 	// North blocks
 	for(int px = 0; px < K+1; px++)
 	{
-		for(int py = 0; py < K+1; py++)
+		for(int py = 0; py < K+1-px; py++)
 		{
 			for(int qx = 0; qx < K+1; qx++)
 			{
-				for(int qy = 0; qy < K+1; qy++)
+				for(int qy = 0; qy < K+1-qx; qy++)
 				{
 					double val = 0.0;
 					val += diffconst * (2.0/h) * (-0.5) *(2.0/h) * (px == qx ? 1.0 : 0.0)
@@ -450,11 +451,11 @@ void NSSolve::BuildMatA()
 	// South blocks
 	for(int px = 0; px < K+1; px++)
 	{
-		for(int py = 0; py < K+1; py++)
+		for(int py = 0; py < K+1-px; py++)
 		{
 			for(int qx = 0; qx < K+1; qx++)
 			{
-				for(int qy = 0; qy < K+1; qy++)
+				for(int qy = 0; qy < K+1-qx; qy++)
 				{
 					double val = 0.0;
 					val += diffconst * (2.0/h) * (0.5) *(2.0/h) * (px == qx ? 1.0 : 0.0)
@@ -490,11 +491,11 @@ void NSSolve::BuildMatUXP(Vec& ux)
 	// Diagonal blocks
 	for(int px = 0; px < K+1; px++)
 	{
-		for(int py = 0; py < K+1; py++)
+		for(int py = 0; py < K+1-px; py++)
 		{
 			for(int qx = 0; qx < K+1; qx++)
 			{
-				for(int qy = 0; qy < K+1; qy++)
+				for(int qy = 0; qy < K+1-qx; qy++)
 				{
 					double val = 0.0;
 					val -=  (2.0/h) *normLegendreAltProducts[px][qx] * (py == qy ? 1.0 : 0.0);
@@ -522,11 +523,11 @@ void NSSolve::BuildMatUXP(Vec& ux)
 	// West blocks
 	for(int px = 0; px < K+1; px++)
 	{
-		for(int py = 0; py < K+1; py++)
+		for(int py = 0; py < K+1-px; py++)
 		{
 			for(int qx = 0; qx < K+1; qx++)
 			{
-				for(int qy = 0; qy < K+1; qy++)
+				for(int qy = 0; qy < K+1-qx; qy++)
 				{
 					double val = 0.0;
 					val -= (2.0/h) * normLegendreLeftVals[qx]*normLegendreRightVals[px]
@@ -560,11 +561,11 @@ void NSSolve::BuildMatUXM(Vec& ux)
 	// Diagonal blocks
 	for(int px = 0; px < K+1; px++)
 	{
-		for(int py = 0; py < K+1; py++)
+		for(int py = 0; py < K+1-px; py++)
 		{
 			for(int qx = 0; qx < K+1; qx++)
 			{
-				for(int qy = 0; qy < K+1; qy++)
+				for(int qy = 0; qy < K+1-qx; qy++)
 				{
 					double val = 0.0;
 					val -= (2.0/h) *normLegendreAltProducts[px][qx] * (py == qy ? 1.0 : 0.0);
@@ -591,11 +592,11 @@ void NSSolve::BuildMatUXM(Vec& ux)
 	// East blocks
 	for(int px = 0; px < K+1; px++)
 	{
-		for(int py = 0; py < K+1; py++)
+		for(int py = 0; py < K+1-px; py++)
 		{
 			for(int qx = 0; qx < K+1; qx++)
 			{
-				for(int qy = 0; qy < K+1; qy++)
+				for(int qy = 0; qy < K+1-qx; qy++)
 				{
 					double val = 0.0;
 					val -= (2.0/h) * (-1.0) * normLegendreLeftVals[px]*normLegendreRightVals[qx]
@@ -630,11 +631,11 @@ void NSSolve::BuildMatUYP(Vec& uy)
 	// Diagonal blocks
 	for(int px = 0; px < K+1; px++)
 	{
-		for(int py = 0; py < K+1; py++)
+		for(int py = 0; py < K+1-px; py++)
 		{
 			for(int qx = 0; qx < K+1; qx++)
 			{
-				for(int qy = 0; qy < K+1; qy++)
+				for(int qy = 0; qy < K+1-qx; qy++)
 				{
 					double val = 0.0;
 					val -=(2.0/h) * (px == qx ? 1.0 : 0.0) * normLegendreAltProducts[py][qy];
@@ -661,11 +662,11 @@ void NSSolve::BuildMatUYP(Vec& uy)
 	// South blocks
 	for(int px = 0; px < K+1; px++)
 	{
-		for(int py = 0; py < K+1; py++)
+		for(int py = 0; py < K+1-px; py++)
 		{
 			for(int qx = 0; qx < K+1; qx++)
 			{
-				for(int qy = 0; qy < K+1; qy++)
+				for(int qy = 0; qy < K+1-qx; qy++)
 				{
 					double val = 0.0;
 					val -= (2.0/h) * normLegendreLeftVals[qy]*normLegendreRightVals[py]
@@ -699,11 +700,11 @@ void NSSolve::BuildMatUYM(Vec& uy)
 	// Diagonal blocks
 	for(int px = 0; px < K+1; px++)
 	{
-		for(int py = 0; py < K+1; py++)
+		for(int py = 0; py < K+1-px; py++)
 		{
 			for(int qx = 0; qx < K+1; qx++)
 			{
-				for(int qy = 0; qy < K+1; qy++)
+				for(int qy = 0; qy < K+1-qx; qy++)
 				{
 					double val = 0.0;
 					val -= (2.0/h) *(px == qx ? 1.0 : 0.0) * normLegendreAltProducts[py][qy];
@@ -730,11 +731,11 @@ void NSSolve::BuildMatUYM(Vec& uy)
 	// North blocks
 	for(int px = 0; px < K+1; px++)
 	{
-		for(int py = 0; py < K+1; py++)
+		for(int py = 0; py < K+1-px; py++)
 		{
 			for(int qx = 0; qx < K+1; qx++)
 			{
-				for(int qy = 0; qy < K+1; qy++)
+				for(int qy = 0; qy < K+1-qx; qy++)
 				{
 					double val = 0.0;
 					val -= (2.0/h) * (-1.0) * normLegendreLeftVals[py]*normLegendreRightVals[qy]
@@ -790,7 +791,7 @@ void NSSolve::BuildRHS(double xx, double yy)
 			double yc = (iy+0.5)*h;
 			for(int px = 0; px < K+1; px++)
 			{
-				for(int py = 0; py < K+1; py++)
+				for(int py = 0; py < K+1-px; py++)
 				{
 					double val = 0.0;
 					for(int j = 0; j < 22; j++)
@@ -825,7 +826,7 @@ double NSSolve::Eval(double x, double y)
 	double yc = (iy+0.5)*h;
 	for(int px = 0; px < K+1; px++)
 	{
-		for(int py = 0; py < K+1; py++)
+		for(int py = 0; py < K+1-px; py++)
 		{
 			val += phi(idx(ix,iy,px,py)) * LegendreEvalNorm(px,(x-xc)*(2.0/h)) * LegendreEvalNorm(py,(y-yc)*(2.0/h));
 		}
@@ -833,11 +834,94 @@ double NSSolve::Eval(double x, double y)
 	return val;
 }
 
+void FFT2D(Mat& input,Mat& outputRe,Mat& outputIm)
+{
+	Eigen::FFT<double> fft;
+	int rows = input.rows();
+	int cols = input.cols();
+	for(int i = 0; i < rows; i++)
+	{
+		std::vector<double> row;
+		for(int j = 0; j < cols; j++) row.push_back(input(i,j));
+		std::vector<std::complex<double>> freqs;
+		fft.fwd(freqs,row);
+		for(int j = 0; j < cols; j++)
+		{
+			outputRe(i,j) = freqs[j].real();
+			outputIm(i,j) = freqs[j].imag();
+		}
+	}
+	for(int j = 0; j < cols; j++)
+	{
+		std::vector<double> colRe;
+		std::vector<double> colIm;
+		for(int i = 0; i < rows; i++)
+		{
+			colRe.push_back(outputRe(i,j));
+			colIm.push_back(outputIm(i,j));
+		}
+		std::vector<std::complex<double>> freqsRe;
+		std::vector<std::complex<double>> freqsIm;
+		fft.fwd(freqsRe,colRe);
+		fft.fwd(freqsIm,colIm);
+		for(int i = 0; i < rows; i++)
+		{
+			outputRe(i,j) = freqsRe[i].real() - freqsIm[i].imag();
+			outputIm(i,j) = freqsRe[i].imag() + freqsIm[i].real();
+		}
+	}
+}
+
+void IFFT2D(Mat& inputRe, Mat& inputIm,Mat& outputRe,Mat& outputIm)
+{
+	Eigen::FFT<double> fft;
+	int rows = inputRe.rows();
+	int cols = inputRe.cols();
+	for(int i = 0; i < rows; i++)
+	{
+		std::vector<std::complex<double>> row;
+		for(int j = 0; j < cols; j++)
+		{
+			std::complex<double> elem(inputRe(i,j),inputIm(i,j));
+			row.push_back(elem);
+		}
+		std::vector<std::complex<double>> res;
+		fft.inv(res,row);
+		for(int j = 0; j < cols; j++)
+		{
+			outputRe(i,j) = res[j].real();
+			outputIm(i,j) = res[j].imag();
+		}
+	}
+	for(int j = 0; j < cols; j++)
+	{
+		std::vector<std::complex<double>> col;
+		for(int i = 0; i < rows; i++)
+		{
+			std::complex<double> elem(outputRe(i,j),outputIm(i,j));
+			col.push_back(elem);
+		}
+		std::vector<std::complex<double>> res;
+		fft.inv(res,col);
+		for(int i = 0; i < rows; i++)
+		{
+			outputRe(i,j) = res[i].real();
+			outputIm(i,j) = res[i].imag();
+		}
+	}
+}
+
+
 
 extern "C" {
 
-Mat disp(DISPPIXELS,DISPPIXELS);
-Mat dispTemp(DISPPIXELS,DISPPIXELS);
+Mat dispRe(DISPPIXELS,DISPPIXELS);
+Mat dispIm(DISPPIXELS,DISPPIXELS);
+Mat dispTemp(10,10);
+Mat dispTempFFTRe(10,10);
+Mat dispTempFFTIm(10,10);
+Mat dispFFTRe(DISPPIXELS,DISPPIXELS);
+Mat dispFFTIm(DISPPIXELS,DISPPIXELS);
 
 
 double len = 10.0;
@@ -918,49 +1002,65 @@ double blue(double lambda, int colorIndex)
 
 void repaint(NSSolve& cd)
 {
-	double maxphi = cd.Eval(0.0, 0.0);
-	double minphi = cd.Eval(0.0,0.0);
-	for(int i = 0; i < 100; i++)
+
+	for(int i = 0; i < 10; i++)
 	{
-		for(int j = 0; j < 100; j++)
+		for(int j = 0; j < 10; j++)
 		{
-			double val = cd.Eval(len*(1.0*j)/100,len*(1.0*i)/100);
-			if(val > maxphi) maxphi = val;
-			if(val < minphi) minphi = val;
+			dispTemp(i,j) = (cd.Eval(len*(1.0*(j+0.5))/10,len*(1.0*(i+0.5))/10));
 		}
 	}
 
-	for(int i = 0; i < DISPPIXELS; i++)
+	FFT2D(dispTemp,dispTempFFTRe,dispTempFFTIm);
+
+	for(int i = 0; i < 5; i++)
 	{
-		for(int j = 0; j < DISPPIXELS; j++)
+		for(int j = 0; j < 5; j++)
 		{
-			dispTemp(i,j) = (cd.Eval(len*(1.0*j)/DISPPIXELS,len*(1.0*i)/DISPPIXELS)-minphi)/(maxphi-minphi);
+			dispFFTRe(i,j) = dispTempFFTRe(i,j);
+			dispFFTIm(i,j) = dispTempFFTIm(i,j);
 		}
 	}
 
-	int shift = 25;
-
-	for(int i = 0; i < DISPPIXELS; i++)
+	for(int i = 1; i < 5; i++)
 	{
-		for(int j = 0; j < DISPPIXELS; j++)
+		for(int j = 0; j < 5; j++)
 		{
-			disp(i,j) = dispTemp((i+shift)%DISPPIXELS,(j+shift)%DISPPIXELS)
-				+ dispTemp((i+shift)%DISPPIXELS,j)
-				+ dispTemp((i+shift)%DISPPIXELS,(j-shift+DISPPIXELS)%DISPPIXELS)
-				+ dispTemp(i,(j-shift+DISPPIXELS)%DISPPIXELS)
-				+ dispTemp((i-shift+DISPPIXELS)%DISPPIXELS,(j-shift+DISPPIXELS)%DISPPIXELS)
-				+ dispTemp((i-shift+DISPPIXELS)%DISPPIXELS,j)
-				+ dispTemp((i-shift+DISPPIXELS)%DISPPIXELS,(j+shift)%DISPPIXELS)
-				+ dispTemp(i,(j+shift)%DISPPIXELS)
-				+ dispTemp(i,j);
-			disp(i,j) /= 9.0;
+			dispFFTRe(700-i,j) = dispTempFFTRe(10-i,j);
+			dispFFTIm(700-i,j) = dispTempFFTIm(10-i,j);
 		}
 	}
+
+	for(int i = 0; i < 5; i++)
+	{
+		for(int j = 1; j < 5; j++)
+		{
+			dispFFTRe(i,700-j) = dispTempFFTRe(i,10-j);
+			dispFFTIm(i,700-j) = dispTempFFTIm(i,10-j);
+		}
+	}
+
+	for(int i = 1; i < 5; i++)
+	{
+		for(int j = 1; j < 5; j++)
+		{
+			dispFFTRe(700-i,700-j) = dispTempFFTRe(10-i,10-j);
+			dispFFTIm(700-i,700-j) = dispTempFFTIm(10-i,10-j);
+		}
+	}
+
+	IFFT2D(dispFFTRe,dispFFTIm,dispRe,dispIm);
+
+
+	double maxphi = dispRe.maxCoeff();
+	double minphi = dispRe.minCoeff();
+
+	
 
 	if (SDL_MUSTLOCK(screen)) SDL_LockSurface(screen);
 	for (int i = 0; i < DISPPIXELS; i++) {
 		for (int j = 0; j < DISPPIXELS; j++) {
-			double val = disp(i,j);
+			double val = (dispRe(i,j)-minphi)/(maxphi-minphi);
 			int colorIndex = getColorIndex(val);
 			double lambda = getLambda(val,colorIndex);
 			double valr = red(lambda,colorIndex)*255.0;
@@ -1112,6 +1212,14 @@ int main(int argc, char ** argv)
 	MakeLegendreEndpointVals();
 	// MakeLegendreTripleProducts();
 	// MakeLegendreDerivTripleProducts();
+
+	dispRe.setZero();
+	dispIm.setZero();
+	dispFFTRe.setZero();
+	dispFFTIm.setZero();
+	dispTemp.setZero();
+	dispTempFFTRe.setZero();
+	dispTempFFTIm.setZero();
 
 	ux.setZero();
 	uy.setZero();
