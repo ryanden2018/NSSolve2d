@@ -842,15 +842,15 @@ Mat dispTemp(DISPPIXELS,DISPPIXELS);
 
 double len = 10.0;
 SDL_Surface *screen;
-NSSolve nsSolve(40,1,len,true);
-NSSolve nsSolveOmega(40,1,len,false);
+NSSolve nsSolve(10,1,len,true);
+NSSolve nsSolveOmega(10,1,len,false);
 std::queue<int> workQueue;
 bool nsSolveInited(false);
 bool mouseIsDown(false);
 bool touchIsStarted(false);
 
-Vec ux(6400); ////
-Vec uy(6400); ////
+Vec ux(400); ////
+Vec uy(400); ////
 
 double getVelocityX(long targetX)
 {
@@ -889,7 +889,7 @@ void touch_update(const EmscriptenTouchEvent *e)
 	}
 }
 
-#define NUMLEVELS 13
+const int NUMLEVELS = 13;
 
 int getColorIndex(double val)
 {
@@ -1074,9 +1074,9 @@ void init()
 	nsSolveOmega.PrepEvolve(dt);
 	nsSolveOmega.Evolve(dt);
 	repaint(nsSolve);
-	for(int ix = 0; ix < 40; ix++)
+	for(int ix = 0; ix < 10; ix++)
 	{
-		for(int iy = 0; iy < 40; iy++)
+		for(int iy = 0; iy < 10; iy++)
 		{
 			ux(nsSolve.idx(ix,iy,0,0)) = -1.0*nsSolve.phi(nsSolve.idx(ix,iy,0,1));
 			uy(nsSolve.idx(ix,iy,0,0)) = nsSolve.phi(nsSolve.idx(ix,iy,1,0));
@@ -1115,12 +1115,12 @@ int main(int argc, char ** argv)
 
 	ux.setZero();
 	uy.setZero();
-	for(int ix = 0; ix < 40; ix++)
+	for(int ix = 0; ix < 10; ix++)
 	{
-		for(int iy = 0; iy < 40; iy++)
+		for(int iy = 0; iy < 10; iy++)
 		{
-			ux(nsSolve.idx(ix,iy,0,0)) = 25*std::sin(2.0*PI*iy/40.0);
-			uy(nsSolve.idx(ix,iy,0,0)) = 25*std::sin(2.0*PI*ix/40.0);
+			ux(nsSolve.idx(ix,iy,0,0)) = 25*std::sin(2.0*PI*iy/10.0);
+			uy(nsSolve.idx(ix,iy,0,0)) = 25*std::sin(2.0*PI*ix/10.0);
 		}
 	}
 	
